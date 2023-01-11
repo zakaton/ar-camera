@@ -1,0 +1,15 @@
+{
+  "name": "ar-camera",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.1",
+    "ws": "^8.11.0"
+  },
+  "repository": "https://github.com/zakaton/ar-camera.git",
+  "author": "Zack <zack@ukaton.com>",
+  "license": "MIT"
+}

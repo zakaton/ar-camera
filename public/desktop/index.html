@@ -1,0 +1,150 @@
+<html>
+  <head>
+    <title>Desktop | AR Camera</title>
+  </head>
+  <body>
+    <h1>Desktop | AR Camera</h1>
+    <button
+      id="captureScreenButton"
+      style="display: none"
+      onclick="getScreenCapture()"
+    >
+      capture screen
+    </button>
+    <video id="video" autoplay muted style="display: none"></video>
+    <div id="label-container"></div>
+  </body>
+
+  <script>
+    // SCREEN CAPTURE
+    let shouldCropSquare = true;
+    const video = document.getElementById("video");
+    let captureStream;
+    async function getScreenCapture() {
+      if (captureStream) {
+        return;
+      }
+
+      try {
+        captureStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
+      } catch (error) {
+        console.error(`Error: ${error}`);
+      }
+      captureScreenButton.style.display = "none";
+      captureStream.oninactive = () => {
+        captureStream = null;
+        captureScreenButton.style.display = "";
+        video.style.display = "none";
+      };
+      video.srcObject = captureStream;
+      video.play();
+      video.style.display = "";
+    }
+    video.onloadeddata = () => {
+      console.log("loaded video data");
+      if (shouldCropSquare) {
+        const length = Math.max(video.videoWidth, video.videoHeight);
+        canvas.width = length;
+        canvas.height = length;
+      } else {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+
+      loop();
+    };
+
+    // WEBSOCKETS
+    let ws;
+    function initWebsocket() {
+      ws = new WebSocket("wss://localhost:3000");
+      console.log(ws);
+      ws.addEventListener("open", () => {
+        console.log("opened websocket connection");
+      });
+      ws.addEventListener("close", () => {
+        console.log("websocket connection closed");
+        setTimeout(() => {
+          initWebsocket();
+        }, 1000);
+      });
+      ws.addEventListener("message", async (event) => {
+        const blob = event.data;
+        console.log("websocket message", blob);
+        const arrayBuffer = await blob.arrayBuffer();
+        const dataView = new DataView(arrayBuffer);
+        parseMessage(dataView);
+      });
+    }
+    function isWebsocketConnected() {
+      return ws.readyState == WebSocket.OPEN;
+    }
+    function sendMessage(...message) {
+      if (isWebsocketConnected()) {
+        // console.log("sending message", message);
+        const blob = new Blob(message);
+        ws.send(blob);
+      }
+    }
+    const MessageTypeStrings = [];
+    const MessageTypes = {};
+    MessageTypeStrings.forEach(
+      (string, index) => (MessageTypes[string] = index)
+    );
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    async function sendPicture() {
+      if (isWebsocketConnected() && mostProbableClass) {
+        if (shouldCropSquare) {
+          const length = Math.min(video.videoWidth, video.videoHeight);
+          let x = 0;
+          let y = 0;
+          if (video.videoWidth > video.videoHeight) {
+            x = (video.videoWidth - video.videoHeight) / 2;
+          } else {
+            y = (video.videoHeight - video.videoWidth) / 2;
+          }
+          ctx.drawImage(
+            video,
+            x,
+            y,
+            length,
+            length,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+        } else {
+          ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+        }
+        console.log("creating blob...");
+        const blob = await canvas.convertToBlob();
+        console.log("blob", blob);
+        sendMessage(
+          Uint8Array.from([MessageTypes.PICTURE]),
+          Uint8Array.from([mostProbableClass.length]),
+          textEncoder.encode(mostProbableClass),
+          blob
+        );
+      }
+    }
+
+    const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder();
+    async function parseMessage(dataView) {
+      //console.log(dataView, dataView.getUint8);
+      let byteOffset = 0;
+      const type = dataView.getUint8(byteOffset++);
+      switch (type) {
+        default:
+          console.log(`uncaught message type #${type}`);
+          break;
+      }
+    }
+  </script>
+</html>
