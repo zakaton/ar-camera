@@ -3,6 +3,8 @@ const express = require("express");
 const https = require("https");
 const http = require("http");
 const fs = require("fs");
+const multer = require("multer");
+const upload = multer();
 
 const app = express();
 
@@ -14,6 +16,23 @@ const options = {
 
 // This will serve the static files in the /public folder on our server
 app.use(express.static("public"));
+
+//use bodyParser() to let us get the data from a POST
+app.use(express.json());
+
+app.post(
+  "/api/picture/add",
+  upload.fields([{ name: "image", maxCount: 1 }]),
+  (req, res) => {
+    if (req.files.image.length) {
+      const image = req.files.image[0];
+      console.log(image);
+      res.send({ success: true, name: req.files.image[0].originalname });
+    } else {
+      res.send({ success: false, message: "No files sent." });
+    }
+  }
+);
 
 // Create an HTTP service.
 http.createServer(app).listen(80, () => {

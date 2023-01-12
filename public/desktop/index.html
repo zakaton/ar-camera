@@ -1,14 +1,11 @@
 <html>
   <head>
     <title>Desktop | AR Camera</title>
+    <script src="https://cdn.jsdelivr.net/gh/WangYuLue/image-conversion/build/conversion.js"></script>
   </head>
   <body>
     <h1>Desktop | AR Camera</h1>
-    <button
-      id="captureScreenButton"
-      style="display: none"
-      onclick="getScreenCapture()"
-    >
+    <button id="captureScreenButton" onclick="getScreenCapture()">
       capture screen
     </button>
     <video id="video" autoplay muted style="display: none"></video>
@@ -53,8 +50,6 @@
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
       }
-
-      loop();
     };
 
     // WEBSOCKETS
@@ -73,32 +68,36 @@
       });
       ws.addEventListener("message", async (event) => {
         const blob = event.data;
-        console.log("websocket message", blob);
         const arrayBuffer = await blob.arrayBuffer();
-        const dataView = new DataView(arrayBuffer);
-        parseMessage(dataView);
+        const message = JSON.parse(textDecoder.decode(arrayBuffer));
+        //console.log("websocket message", message);
+        onMessage(message);
       });
     }
     function isWebsocketConnected() {
       return ws.readyState == WebSocket.OPEN;
     }
-    function sendMessage(...message) {
+    function sendMessage(message) {
       if (isWebsocketConnected()) {
-        // console.log("sending message", message);
-        const blob = new Blob(message);
-        ws.send(blob);
+        ws.send(JSON.stringify(message));
       }
     }
-    const MessageTypeStrings = [];
+    const MessageTypeStrings = [
+      // FILL - messages
+    ];
     const MessageTypes = {};
     MessageTypeStrings.forEach(
       (string, index) => (MessageTypes[string] = index)
     );
+    function onMessage(message) {
+      console.log(message);
+    }
 
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
+    let imageSize = 50;
     async function sendPicture() {
-      if (isWebsocketConnected() && mostProbableClass) {
+      if (isWebsocketConnected()) {
         if (shouldCropSquare) {
           const length = Math.min(video.videoWidth, video.videoHeight);
           let x = 0;
@@ -122,29 +121,32 @@
         } else {
           ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
         }
-        console.log("creating blob...");
-        const blob = await canvas.convertToBlob();
-        console.log("blob", blob);
-        sendMessage(
-          Uint8Array.from([MessageTypes.PICTURE]),
-          Uint8Array.from([mostProbableClass.length]),
-          textEncoder.encode(mostProbableClass),
-          blob
+
+        const image = await imageConversion.canvastoFile(canvas);
+        const compressedImage = await imageConversion.compressAccurately(
+          image,
+          {
+            size: imageSize,
+            type: "image/jpeg",
+          }
         );
+
+        // FILL - image name
+        const formData = new FormData();
+        formData.append("image", compressedImage, "my-image.jpeg");
+
+        const response = await fetch("/api/picture/add", {
+          method: "post",
+          body: formData,
+        });
+        const json = await response.json();
+        return json;
       }
     }
 
     const textEncoder = new TextEncoder();
     const textDecoder = new TextDecoder();
-    async function parseMessage(dataView) {
-      //console.log(dataView, dataView.getUint8);
-      let byteOffset = 0;
-      const type = dataView.getUint8(byteOffset++);
-      switch (type) {
-        default:
-          console.log(`uncaught message type #${type}`);
-          break;
-      }
-    }
+
+    initWebsocket();
   </script>
 </html>
