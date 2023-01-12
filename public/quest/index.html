@@ -63,6 +63,13 @@
       // FILL - replace existing image if already in assets
       document.body.appendChild(image);
     }
+    async function renameImage(oldImageName, newImageName) {
+      const response = await fetch(
+        `/api/image/rename?oldName=${oldImageName}&newName=${newImageName}`
+      );
+      const json = await response.json();
+      console.log(json);
+    }
 
     // WEBSOCKETS
     let ws;

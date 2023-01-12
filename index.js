@@ -59,6 +59,20 @@ app.get("/api/image/list", (req, res) => {
     }
   });
 });
+app.get("/api/image/rename", (req, res) => {
+  const { oldName, newName } = req.query;
+  if (oldName && newName) {
+    fs.rename(`./images/${oldName}`, `./images/${newName}`, (error) => {
+      if (error) {
+        res.status(400).send({ error: error?.message });
+      } else {
+        res.send({ name: newName });
+      }
+    });
+  } else {
+    res.status(400).send({ error: "no names specified" });
+  }
+});
 
 // Create an HTTP service.
 http.createServer(app).listen(80, () => {
