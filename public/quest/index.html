@@ -1,7 +1,7 @@
 <html>
   <head>
     <title>Quest Pro | AR Camera</title>
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script _src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://rawgit.com/blairmacintyre/aframe-look-at-billboard-component/master/dist/aframe-look-at-billboard-component.min.js"></script>
   </head>
 
@@ -37,6 +37,32 @@
   <script>
     const scene = document.querySelector("a-scene");
     const assets = scene.querySelector("a-assets");
+
+    let imageList;
+    async function listImages() {
+      const response = await fetch("/api/image/list");
+      imageList = await response.json();
+      console.log(imageList);
+    }
+    async function getImages() {
+      if (!imageList) {
+        await listImages();
+      }
+      imageList.forEach(async (imageName) => {
+        await getImage(imageName);
+      });
+    }
+    async function getImage(imageName) {
+      const response = await fetch(`/api/image/get?name=${imageName}`);
+      const blob = await response.blob();
+      const image = new Image();
+      console.log(blob);
+      image.src = URL.createObjectURL(blob);
+      console.log(image);
+      // FILL - add to assets and whatnot...
+      // FILL - replace existing image if already in assets
+      document.body.appendChild(image);
+    }
 
     // WEBSOCKETS
     let ws;

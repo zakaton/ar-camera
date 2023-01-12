@@ -21,18 +21,44 @@ app.use(express.static("public"));
 app.use(express.json());
 
 app.post(
-  "/api/picture/add",
+  "/api/image/add",
   upload.fields([{ name: "image", maxCount: 1 }]),
   (req, res) => {
     if (req.files.image.length) {
       const image = req.files.image[0];
-      console.log(image);
-      res.send({ success: true, name: req.files.image[0].originalname });
+      const name = image.originalname;
+      fs.writeFile(`./images/${name}`, image.buffer, function (error) {
+        res.send({ error: error?.message, name });
+      });
     } else {
-      res.send({ success: false, message: "No files sent." });
+      res.status(400).send({ error: "no files sent" });
     }
   }
 );
+app.get("/api/image/get", (req, res) => {
+  const { name } = req.query;
+  if (name) {
+    fs.readFile(`./images/${name}`, (error, data) => {
+      if (error) {
+        res.status(400).send({ error: error?.message });
+      } else {
+        res.send(data);
+      }
+    });
+  } else {
+    res.status(400).send({ error: "no name specified" });
+  }
+});
+app.get("/api/image/list", (req, res) => {
+  fs.readdir("./images", (error, files) => {
+    if (error) {
+      res.status(400).send({ error: error?.message });
+    } else {
+      files = files.filter((file) => file.endsWith(".jpeg"));
+      res.send(files);
+    }
+  });
+});
 
 // Create an HTTP service.
 http.createServer(app).listen(80, () => {

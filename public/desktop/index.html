@@ -95,7 +95,7 @@
 
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    let imageSize = 50;
+    let imageSize = 100;
     async function sendPicture() {
       if (isWebsocketConnected()) {
         if (shouldCropSquare) {
@@ -135,7 +135,7 @@
         const formData = new FormData();
         formData.append("image", compressedImage, "my-image.jpeg");
 
-        const response = await fetch("/api/picture/add", {
+        const response = await fetch("/api/image/add", {
           method: "post",
           body: formData,
         });
