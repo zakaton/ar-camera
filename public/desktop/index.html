@@ -60,7 +60,7 @@
     // WEBSOCKETS
     let ws;
     function initWebsocket() {
-      ws = new WebSocket("wss://localhost:3000");
+      ws = new WebSocket(`wss://${location.host}`);
       console.log(ws);
       ws.addEventListener("open", () => {
         console.log("opened websocket connection");

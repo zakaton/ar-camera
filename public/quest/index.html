@@ -384,7 +384,7 @@
     // WEBSOCKETS
     let ws;
     function initWebsocket() {
-      ws = new WebSocket("wss://ar-spotlight.glitch.me");
+      ws = new WebSocket(`wss://${location.host}`);
       console.log(ws);
       ws.addEventListener("open", () => {
         console.log("opened websocket connection");

@@ -43,11 +43,12 @@ function broadcast(data, ws) {
 }
 
 wsServer.on("connection", (ws) => {
+  console.log("new ws connection");
   ws.on("message", (data) => {
-    console.log("Message Received:");
+    console.log("ws message received");
     broadcast(data, ws);
   });
   ws.on("close", () => {
-    console.log("Disconnected:");
+    console.log("ws disconnected");
   });
 });
