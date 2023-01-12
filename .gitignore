@@ -127,3 +127,7 @@ dist
 .pnp.*
 
 *.txt
+
+sec/*
+.DS_Store
+.vscode/*

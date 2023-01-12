@@ -1,12 +1,27 @@
-// HTTP Server:
+// HTTPS Server:
 const express = require("express");
+const https = require("https");
+const http = require("http");
+const fs = require("fs");
+
 const app = express();
+
+// This line is from the Node.js HTTPS documentation.
+const options = {
+  key: fs.readFileSync("sec/server.key"),
+  cert: fs.readFileSync("sec/server.crt"),
+};
 
 // This will serve the static files in the /public folder on our server
 app.use(express.static("public"));
 
-const server = app.listen(3000, function () {
-  console.log("Your app is listening on port " + server.address().port);
+// Create an HTTP service.
+http.createServer(app).listen(80, () => {
+  console.log("http server listening on 80");
+});
+// Create an HTTPS service identical to the HTTP service.
+const server = https.createServer(options, app).listen(443, () => {
+  console.log("https server listening on 443");
 });
 
 // Websocket Server:
