@@ -68,7 +68,8 @@
         `/api/image/rename?oldName=${oldImageName}&newName=${newImageName}`
       );
       const json = await response.json();
-      console.log(json);
+      // FILL - rename existing images
+      await listImages();
     }
 
     // WEBSOCKETS

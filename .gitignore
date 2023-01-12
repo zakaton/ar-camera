@@ -131,3 +131,5 @@ dist
 sec/*
 .DS_Store
 .vscode/*
+
+images/*
