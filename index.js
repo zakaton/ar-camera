@@ -30,6 +30,7 @@ app.post(
       fs.writeFile(`./images/${name}`, image.buffer, function (error) {
         res.send({ error: error?.message, name });
       });
+      // FILL - send websocket message announcing new image
     } else {
       res.status(400).send({ error: "no files sent" });
     }

@@ -13,6 +13,9 @@
   </body>
 
   <script>
+    const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder();
+
     // SCREEN CAPTURE
     let shouldCropSquare = true;
     const video = document.getElementById("video");
@@ -82,21 +85,20 @@
         ws.send(JSON.stringify(message));
       }
     }
-    const MessageTypeStrings = [
-      // FILL - messages
-    ];
-    const MessageTypes = {};
-    MessageTypeStrings.forEach(
-      (string, index) => (MessageTypes[string] = index)
-    );
     function onMessage(message) {
-      console.log(message);
+      console.log("received message", message);
+      switch (message.type) {
+        default:
+          console.log("uncaught message type", message.type);
+          break;
+      }
     }
 
+    // IMAGE
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     let imageSize = 100;
-    async function sendPicture() {
+    async function sendPicture(imageName = "my-image") {
       if (isWebsocketConnected()) {
         if (shouldCropSquare) {
           const length = Math.min(video.videoWidth, video.videoHeight);
@@ -131,9 +133,8 @@
           }
         );
 
-        // FILL - image name
         const formData = new FormData();
-        formData.append("image", compressedImage, "my-image.jpeg");
+        formData.append("image", compressedImage, `${imageName}.jpeg`);
 
         const response = await fetch("/api/image/add", {
           method: "post",
@@ -144,9 +145,31 @@
       }
     }
 
-    const textEncoder = new TextEncoder();
-    const textDecoder = new TextDecoder();
+    // SPEECH RECOGNITION
+    let enableSpeechRecognition = true;
+    let SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.addEventListener("result", (event) => {
+      const { results } = event;
+      const result = results[0];
+      if (result) {
+        const { isFinal } = result;
+        const { transcript } = result[0];
+        const message = { type: "speechRecognition", transcript, isFinal };
+        sendMessage(message);
+      }
+    });
+    recognition.addEventListener("end", (event) => {
+      if (enableSpeechRecognition) {
+        recognition.start();
+      }
+    });
 
     initWebsocket();
+    //recognition.start();
   </script>
 </html>

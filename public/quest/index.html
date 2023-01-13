@@ -30,13 +30,49 @@
     <a-scene>
       <a-assets></a-assets>
 
-      <a-camera id="camera"> </a-camera>
+      <a-camera id="camera">
+        <a-entity position="0 0 -0.4" id="hud">
+          <a-entity
+            position="0 0 0"
+            id="transcriptText"
+            geometry="primitive: plane; width: 1; height: auto"
+            material="color: yellow; shader: flat; opacity: 0.7"
+            text="value: This text will be 4 units wide.; color: black; wrap-count: 20; align: center; shader: flat;"
+          ></a-entity>
+        </a-entity>
+      </a-camera>
     </a-scene>
   </body>
 
   <script>
     const scene = document.querySelector("a-scene");
     const assets = scene.querySelector("a-assets");
+
+    const transcriptText = document.getElementById("transcriptText");
+    function setTranscriptText(value, color) {
+      setTextValue(transcriptText, value);
+      setTextColor(transcriptText, color);
+    }
+    function setTextColor(entity, color) {
+      if (color) {
+        entity.setAttribute("text", "color", color);
+      }
+    }
+    function setTextValue(entity, value) {
+      if (value) {
+        entity.setAttribute("text", "value", value);
+        updateTextSize(entity);
+      }
+    }
+    function updateTextSize(entity) {
+      entity.setAttribute(
+        "geometry",
+        "height",
+        (entity.components["text"].geometry.layout.height *
+          entity.components["text"].geometry.layout._linesTotal) /
+          1000
+      );
+    }
 
     let imageList;
     async function listImages() {
@@ -90,7 +126,6 @@
         const blob = event.data;
         const arrayBuffer = await blob.arrayBuffer();
         const message = JSON.parse(textDecoder.decode(arrayBuffer));
-        //console.log("websocket message", message);
         onMessage(message);
       });
     }
@@ -102,14 +137,24 @@
         ws.send(JSON.stringify(message));
       }
     }
-    const MessageTypeStrings = [
-      // FILL - message types
-    ];
-    const MessageTypes = {};
-    MessageTypeStrings.forEach(
-      (string, index) => (MessageTypes[string] = index)
-    );
     function onMessage(message) {
+      console.log("received message", message);
+      switch (message.type) {
+        case "speechRecognition":
+          {
+            const { isFinal, transcript } = message;
+            // FILL - put transcript in text
+            // color text is "isFinal"
+
+            if (isFinal) {
+              onSpeechTranscript(transcript);
+            }
+          }
+          break;
+        default:
+          console.log("uncaught message type", message.type);
+          break;
+      }
       console.log(message);
     }
 
@@ -120,5 +165,9 @@
     const textEncoder = new TextEncoder();
 
     initWebsocket();
+
+    function onSpeechTranscript(transcript) {
+      // FILL
+    }
   </script>
 </html>
