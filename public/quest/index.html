@@ -32,13 +32,38 @@
 
       <a-camera id="camera">
         <a-entity position="0 0 -0.4" id="hud">
-          <a-entity
-            position="0 0 0"
-            id="transcriptText"
-            geometry="primitive: plane; width: 1; height: auto"
-            material="color: yellow; shader: flat; opacity: 0.7"
-            text="value: This text will be 4 units wide.; color: black; wrap-count: 20; align: center; shader: flat;"
-          ></a-entity>
+          <a-entity position="0 0.1 0" id="promptText">
+            <a-text
+              value="prompt"
+              wrap-count="20"
+              color="black"
+              baseline="top"
+              align="center"
+              shader="flat"
+              width="0.5"
+            ></a-text>
+            <a-plane
+              geometry="primitive: plane; width:0; height:0;"
+              material="color: white; shader: flat; opacity: 0.6"
+            >
+            </a-plane>
+          </a-entity>
+          <a-entity position="0 -0.1 0" id="transcriptText">
+            <a-text
+              value="transcript"
+              wrap-count="20"
+              color="black"
+              baseline="bottom"
+              align="center"
+              shader="flat"
+              width="0.5"
+            ></a-text>
+            <a-plane
+              geometry="primitive: plane; width:0; height:0;"
+              material="color: white; shader: flat; opacity: 0.6"
+            >
+            </a-plane>
+          </a-entity>
         </a-entity>
       </a-camera>
     </a-scene>
@@ -49,30 +74,54 @@
     const assets = scene.querySelector("a-assets");
 
     const transcriptText = document.getElementById("transcriptText");
+    const promptText = document.getElementById("promptText");
+    function setText(entity, value, color) {
+      setTextValue(entity, value);
+      setTextColor(entity, color);
+    }
     function setTranscriptText(value, color) {
-      setTextValue(transcriptText, value);
-      setTextColor(transcriptText, color);
+      setText(transcriptText, value, color);
+    }
+    function setPromptText(value, color) {
+      setText(promptText, value, color);
     }
     function setTextColor(entity, color) {
-      if (color) {
-        entity.setAttribute("text", "color", color);
+      if (typeof color == "string") {
+        entity.querySelector("a-text").setAttribute("color", color);
       }
     }
     function setTextValue(entity, value) {
-      if (value) {
-        entity.setAttribute("text", "value", value);
+      if (typeof value == "string") {
+        entity.querySelector("a-text").setAttribute("value", value);
         updateTextSize(entity);
       }
     }
+    let textSize = new THREE.Vector3();
     function updateTextSize(entity) {
-      entity.setAttribute(
-        "geometry",
-        "height",
-        (entity.components["text"].geometry.layout.height *
-          entity.components["text"].geometry.layout._linesTotal) /
-          1000
-      );
+      setTimeout(() => {
+        let text = entity.querySelector("a-text").components["text"];
+        text.geometry.computeBoundingBox();
+        const { boundingBox } = text.geometry;
+        boundingBox.getSize(textSize);
+
+        const width = textSize.x / 1000;
+        const height = textSize.y / 1000;
+        entity.querySelector("a-plane").setAttribute("width", width);
+        entity.querySelector("a-plane").setAttribute("height", height);
+        if (text.data.baseline !== "center") {
+          entity.querySelector("a-plane").object3D.position.y =
+            ((text.data.baseline == "top" ? -1 : 1) * height) / 2;
+        }
+      }, 0);
     }
+
+    [transcriptText, promptText].forEach((textEntity) => {
+      textEntity.addEventListener("loaded", (e) => {
+        setTimeout(() => {
+          setText(textEntity, "");
+        }, 500);
+      });
+    });
 
     let imageList;
     async function listImages() {
@@ -143,9 +192,7 @@
         case "speechRecognition":
           {
             const { isFinal, transcript } = message;
-            // FILL - put transcript in text
-            // color text is "isFinal"
-
+            setTranscriptText(transcript, isFinal ? "green" : "black");
             if (isFinal) {
               onSpeechTranscript(transcript);
             }
