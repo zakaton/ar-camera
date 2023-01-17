@@ -4,6 +4,7 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="./persistent-anchors-component.js"></script>
     <script src="https://rawgit.com/blairmacintyre/aframe-look-at-billboard-component/master/dist/aframe-look-at-billboard-component.min.js"></script>
+    <script src="https://gftruj.github.io/hand.tracking.controls.extras/dist/aframe-hand-tracking-controls-extras.js"></script>
   </head>
 
   <style>
@@ -28,8 +29,41 @@
   </style>
 
   <body>
-    <a-scene webxr="optionalFeatures: anchors;">
-      <a-assets></a-assets>
+    <a-scene
+      webxr="optionalFeatures: anchors;"
+      persistent-anchors="target: #sceneContainer; targetAnchor: #internalAnchor;"
+    >
+      <a-assets
+        ><a-asset-item
+          id="anchorModel"
+          src="https://cdn.glitch.global/92905fa6-6d62-410a-a5c8-2fc4bf919348/toon_low-poly_anchor.glb?v=1670427764304"
+        ></a-asset-item
+      ></a-assets>
+
+      <a-entity visible="false" id="anchor">
+        <a-box scale="0.01 0.01 0.01" color="red" visible="false"></a-box>
+        <a-entity position="0 -0.12 -0.1">
+          <a-entity
+            gltf-model="#anchorModel"
+            scale="0.020 0.020 0.020"
+            position="0 0.119 0"
+            rotation="90 0 0"
+          ></a-entity>
+        </a-entity>
+      </a-entity>
+
+      <a-entity id="sceneContainer"
+        ><a-entity id="internalAnchor" position="0.668 1.02778 -2.143">
+          <a-entity position="0 -0.12 -0.1">
+            <a-entity
+              gltf-model="#anchorModel"
+              scale="0.020 0.020 0.020"
+              position="0 0.119 0"
+              rotation="90 0 0"
+            ></a-entity>
+          </a-entity>
+        </a-entity>
+      </a-entity>
 
       <a-entity
         id="imageLocation"
@@ -114,6 +148,7 @@
         visible="true"
         id="rightHandControls"
         hand-tracking-controls="hand: right;"
+        hand-tracking-extras
       ></a-entity>
 
       <a-entity id="panelParent">
@@ -242,17 +277,14 @@
       assets.appendChild(image);
       const imageEntity = document.createElement("a-image");
       imageEntity._info = {
-        position: new THREE.Vector3(),
-        euler: new THREE.Euler(),
+        matrix: new THREE.Matrix4(),
       };
       const imageInfoString = localStorage.getItem(imageName);
       if (imageInfoString) {
-        const { position, euler } = JSON.parse(imageInfoString);
-        imageEntity._info.position.set(...position);
-        imageEntity._info.euler.set(...euler);
+        const { matrix } = JSON.parse(imageInfoString);
+        imageEntity._info.matrix.fromArray(matrix);
       } else {
-        imageEntity._info.position.copy(cameraPosition);
-        imageEntity._info.euler.copy(cameraEuler);
+        imageEntity._info.matrix.copy(cameraMatrixRelativeToAnchor);
       }
       imageEntity.dataset.imageName = imageName;
       imageEntity.setAttribute("src", `#${image.id}`);
@@ -285,8 +317,7 @@
       let imageInfoString = localStorage.getItem(oldImageName);
       if (!imageInfoString) {
         imageInfoString = JSON.stringify({
-          position: imageEntity._info.position.toArray(),
-          euler: imageEntity._info.euler.toArray(),
+          matrix: imageEntity._info.matrix.toArray(),
         });
       }
       localStorage.setItem(newImageName, imageInfoString);
@@ -454,6 +485,14 @@
       }
     });
 
+    let jointsAPI;
+    rightHandControls.addEventListener(
+      "hand-tracking-extras-ready",
+      (event) => {
+        jointsAPI = event.detail.data.jointAPI;
+      }
+    );
+
     const locator = document.getElementById("locator");
     const locatorCone = locator.querySelector("#locatorArrow a-cone");
     const locatorImageContainer = locator.querySelector("#locatorImage");
@@ -491,7 +530,7 @@
     }
 
     let updateLocatorIntervalId;
-    function setLocatorVisibility(isVisible) {
+    async function setLocatorVisibility(isVisible) {
       if (locator.object3D.visible == isVisible) {
         return;
       }
@@ -503,14 +542,18 @@
 
       window.clearInterval(updateLocatorIntervalId);
       if (isVisible) {
-        // FILL 1 - put image in hud
+        await addLocatorImage(selectedImageEntity.dataset.imageName);
         updateLocatorIntervalId = window.setInterval(() => {
           updateLocator();
         }, 100);
       }
 
-      const { position } = selectedImageEntity._info;
-      imageLocation.object3D.position.copy(position);
+      // FILL 2
+      const { matrix } = selectedImageEntity._info;
+      imageLocation.object3D.matrix.multiplyMatrices(
+        sceneContainer.object3D.matrix,
+        matrix
+      );
       imageLocation.object3D.visible = isVisible;
 
       locator.object3D.visible = isVisible;
@@ -538,9 +581,12 @@
       if (!selectedImageEntity) {
         return;
       }
-      const { position } = selectedImageEntity._info;
-
-      cameraToImageVector.subVectors(position, camera.object3D.position);
+      const { matrix } = selectedImageEntity._info;
+      // FILL 3 - get position relative to anchor
+      cameraToImageVector.subVectors(
+        imageLocation.object3D.position,
+        camera.object3D.position
+      );
 
       pointLocatorCone(position);
 
@@ -587,7 +633,7 @@
             break;
         }
 
-        setLocatorVisibility(newLocatorVisibility);
+        await setLocatorVisibility(newLocatorVisibility);
         setPanelVisibility(newPanelVisibility);
 
         setPromptText(newPromptText);
@@ -595,16 +641,22 @@
     }
 
     const camera = document.querySelector("a-camera");
-    const cameraPosition = new THREE.Vector3();
-    const cameraEuler = new THREE.Euler();
+    const cameraMatrixRelativeToAnchor = new THREE.Matrix4();
+    const sceneContainer = document.getElementById("sceneContainer");
 
     /**
      * @param {string} transcript
      */
     function onSpeechTranscript(transcript) {
       if (transcript.includes("take picture")) {
-        cameraPosition.copy(camera.object3D.position);
-        cameraEuler.copy(camera.object3D.rotation).reorder("YXZ");
+        // FILL 1 - get matrix from sceneContainer to camera
+        const cameraMatrix = camera.object3D.matrix;
+        const anchorMatrix = sceneContainer.object3D.matrix;
+        cameraMatrixRelativeToAnchor
+          .copy(anchorMatrix)
+          .invert()
+          .multiply(cameraMatrix);
+
         sendMessage({ type: "take picture" });
       } else if (transcript.includes("name picture ")) {
         const name = transcript.split("name picture ")[1];
@@ -632,6 +684,12 @@
       } else if (transcript == "reset") {
         selectedImageEntity = null;
         updateState("default");
+      } else if (transcript == "set anchor") {
+        if (jointsAPI) {
+          window.persistentAnchorsSystem.createAnchor(
+            jointsAPI.getWrist().getPosition()
+          );
+        }
       } else {
         return false;
       }

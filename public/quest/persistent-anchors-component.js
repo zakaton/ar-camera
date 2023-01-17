@@ -1,14 +1,23 @@
 /* global AFRAME, THREE, XRRigidTransform */
 AFRAME.registerSystem("persistent-anchors", {
-  schema: {},
+  schema: {
+    target: { type: "selector" },
+    targetAnchor: { type: "selector" },
+  },
   init: function () {
     window.persistentAnchorsSystem = this;
     this.checkedAnchors = false;
-
-    this.euler = new THREE.Euler();
+    this.anchorEntity = document.getElementById("anchor");
+    this.euler = new THREE.Euler(0, 0, 0, "YXZ");
     this.matrix = new THREE.Matrix4();
-    this.position = new THREE.Vector3();
-    this.quaternion = new THREE.Quaternion();
+
+    this.data.targetAnchor.addEventListener("loaded", (event) => {
+      const { position, quaternion } = this.data.targetAnchor.object3D;
+      this.matrixInverse = new THREE.Matrix4();
+      this.matrixInverse.makeRotationFromQuaternion(quaternion);
+      this.matrixInverse.setPosition(...position.toArray());
+      this.matrixInverse.invert();
+    });
   },
   tick: function () {
     this.renderer = this.el.sceneEl.renderer;
@@ -49,13 +58,24 @@ AFRAME.registerSystem("persistent-anchors", {
         );
         if (anchorPose) {
           const { orientation, position, matrix } = anchorPose.transform;
+          this.anchorEntity.object3D.position.set(
+            position.x,
+            position.y,
+            position.z
+          );
+          this.anchorEntity.object3D.quaternion.copy(orientation);
+          this.anchorEntity.object3D.visible = true;
 
-          this.matrix.fromArray(matrix);
-          this.quaternion.fromArray(orientation);
-          this.position.fromArray(position);
+          this.matrix.fromArray(matrix).multiply(this.matrixInverse);
+          this.data.target.object3D.position.setFromMatrixPosition(this.matrix);
+          this.data.target.object3D.quaternion.setFromRotationMatrix(
+            this.matrix
+          );
 
           this._updateTransformFlag = false;
-          this.latestUpdateTime = Date.now();
+          console.log("updated");
+        } else {
+          this.anchorEntity.object3D.visible = false;
         }
       }
 
