@@ -2,6 +2,7 @@
   <head>
     <title>Quest Pro | AR Camera</title>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="./persistent-anchors-component.js"></script>
     <script src="https://rawgit.com/blairmacintyre/aframe-look-at-billboard-component/master/dist/aframe-look-at-billboard-component.min.js"></script>
   </head>
 
@@ -27,14 +28,56 @@
   </style>
 
   <body>
-    <a-scene>
+    <a-scene webxr="optionalFeatures: anchors;">
       <a-assets></a-assets>
+
+      <a-entity
+        id="imageLocation"
+        billboard
+        position="0 0 -0.4"
+        visible="false"
+      >
+        <a-entity position="0 0.1 0">
+          <a-text
+            value="0.00m"
+            color="black"
+            material="shader: flat;"
+            scale="0.4 0.4 0.4"
+            align="center"
+            position="0 0 0"
+          ></a-text>
+          <a-entity scale="2.1 1 1">
+            <a-plane
+              height="0.09"
+              opacity="1"
+              width="0.14"
+              color="white"
+              material="shader: flat;"
+              position="0 0 -0.001"
+            ></a-plane>
+          </a-entity>
+        </a-entity>
+      </a-entity>
 
       <a-camera id="camera">
         <a-entity position="0 0 -0.4" id="hud">
+          <a-entity id="locator" visible="false">
+            <a-entity id="locatorImage" position="-0.2 0 0">
+              <a-plane
+                color="red"
+                width="0.3"
+                height="0.3"
+                visible="true"
+              ></a-plane>
+            </a-entity>
+            <a-entity id="locatorArrow" position="0.2 0 -0.2">
+              <a-cone color="red" scale="0.01 0.1 0.01"></a-cone>
+            </a-entity>
+          </a-entity>
+
           <a-entity position="0 0.1 0" id="promptText">
             <a-text
-              value="prompt"
+              value=""
               wrap-count="20"
               color="black"
               baseline="top"
@@ -43,14 +86,14 @@
               width="0.5"
             ></a-text>
             <a-plane
-              geometry="primitive: plane; width:0; height:0;"
-              material="color: white; shader: flat; opacity: 0.6"
+              geometry="primitive: plane; width: 0; height: 0;"
+              material="color: white; shader: flat; opacity: 1"
             >
             </a-plane>
           </a-entity>
-          <a-entity position="0 -0.1 0" id="transcriptText">
+          <a-entity position="0 -0.3 0" id="transcriptText">
             <a-text
-              value="transcript"
+              value=""
               wrap-count="20"
               color="black"
               baseline="bottom"
@@ -60,12 +103,24 @@
             ></a-text>
             <a-plane
               geometry="primitive: plane; width:0; height:0;"
-              material="color: white; shader: flat; opacity: 0.6"
+              material="color: white; shader: flat; opacity: 1"
             >
             </a-plane>
           </a-entity>
         </a-entity>
       </a-camera>
+
+      <a-entity
+        visible="true"
+        id="rightHandControls"
+        hand-tracking-controls="hand: right;"
+      ></a-entity>
+
+      <a-entity id="panelParent">
+        <a-entity id="panel" position="0 1.2 -0.5" rotation="-30 0 0">
+          <a-entity id="panelImages"></a-entity>
+        </a-entity>
+      </a-entity>
     </a-scene>
   </body>
 
@@ -127,33 +182,119 @@
     async function listImages() {
       const response = await fetch("/api/image/list");
       imageList = await response.json();
-      console.log(imageList);
     }
     async function getImages() {
       if (!imageList) {
         await listImages();
       }
-      imageList.forEach(async (imageName) => {
+      const promises = imageList.map(async (imageName) => {
         await getImage(imageName);
       });
+      await Promise.all(promises);
     }
+    function getImageByName(imageName) {
+      return assets.querySelector(`img[data-image-name="${imageName}"]`);
+    }
+    function getImageEntityByName(imageName) {
+      return panel.querySelector(`a-image[data-image-name="${imageName}"]`);
+    }
+    function renameImageElement(oldImageName, newImageName) {
+      const image = getImageByName(oldImageName);
+      if (image) {
+        image.dataset.imageName = newImageName;
+      }
+      const imageEntity = getImageEntityByName(oldImageName);
+      if (imageEntity) {
+        imageEntity.dataset.imageName = newImageName;
+        if (mode == "selected picture" && selectedImageEntity == imageEntity) {
+          setPromptText(newImageName);
+        }
+      }
+    }
+    let imageScalar = 0.2;
+    function updateImageEntity(imageName) {
+      const image = getImageByName(imageName);
+      const imageEntity = getImageEntityByName(imageName);
+
+      if (image && imageEntity) {
+        const ratio = image.height / image.width;
+        imageEntity.setAttribute("width", imageScalar);
+        imageEntity.setAttribute("height", ratio * imageScalar);
+      }
+    }
+
     async function getImage(imageName) {
+      if (!imageList.includes(imageName)) {
+        return;
+      } else {
+        const imageEntity = getImageEntityByName(imageName);
+        if (imageEntity) {
+          return imageEntity;
+        }
+      }
+
       const response = await fetch(`/api/image/get?name=${imageName}`);
       const blob = await response.blob();
       const image = new Image();
-      console.log(blob);
+      image.id = `${imageName}-src`;
       image.src = URL.createObjectURL(blob);
-      console.log(image);
-      // FILL - add to assets and whatnot...
-      // FILL - replace existing image if already in assets
-      document.body.appendChild(image);
+      image.dataset.imageName = imageName;
+      assets.appendChild(image);
+      const imageEntity = document.createElement("a-image");
+      imageEntity._info = {
+        position: new THREE.Vector3(),
+        euler: new THREE.Euler(),
+      };
+      const imageInfoString = localStorage.getItem(imageName);
+      if (imageInfoString) {
+        const { position, euler } = JSON.parse(imageInfoString);
+        imageEntity._info.position.set(...position);
+        imageEntity._info.euler.set(...euler);
+      } else {
+        imageEntity._info.position.copy(cameraPosition);
+        imageEntity._info.euler.copy(cameraEuler);
+      }
+      imageEntity.dataset.imageName = imageName;
+      imageEntity.setAttribute("src", `#${image.id}`);
+      imageEntity.setAttribute("visible", "false");
+      panelImagesContainer.appendChild(imageEntity);
+
+      if (image.complete) {
+        updateImageEntity(imageName);
+      } else {
+        return new Promise((resolve) => {
+          image.addEventListener("load", () => {
+            updateImageEntity(imageName);
+            resolve(imageEntity);
+          });
+        });
+      }
+
+      return imageEntity;
     }
     async function renameImage(oldImageName, newImageName) {
       const response = await fetch(
         `/api/image/rename?oldName=${oldImageName}&newName=${newImageName}`
       );
       const json = await response.json();
-      // FILL - rename existing images
+
+      renameImageElement(oldImageName, newImageName);
+
+      const imageEntity = getImageEntityByName(newImageName);
+
+      let imageInfoString = localStorage.getItem(oldImageName);
+      if (!imageInfoString) {
+        imageInfoString = JSON.stringify({
+          position: imageEntity._info.position.toArray(),
+          euler: imageEntity._info.euler.toArray(),
+        });
+      }
+      localStorage.setItem(newImageName, imageInfoString);
+
+      if (imageEntity == selectedImageEntity) {
+        setPromptText(newImageName);
+      }
+
       await listImages();
     }
 
@@ -164,6 +305,7 @@
       console.log(ws);
       ws.addEventListener("open", () => {
         console.log("opened websocket connection");
+        listImages();
       });
       ws.addEventListener("close", () => {
         console.log("websocket connection closed");
@@ -186,16 +328,31 @@
         ws.send(JSON.stringify(message));
       }
     }
-    function onMessage(message) {
+    async function onMessage(message) {
       console.log("received message", message);
       switch (message.type) {
-        case "speechRecognition":
+        case "speech recognition":
           {
             const { isFinal, transcript } = message;
-            setTranscriptText(transcript, isFinal ? "green" : "black");
+            setTranscriptText(transcript);
             if (isFinal) {
-              onSpeechTranscript(transcript);
+              const didCommand = onSpeechTranscript(transcript);
+              if (didCommand) {
+                setTranscriptText(null, "green");
+              }
+              setTimeout(() => {
+                setTranscriptText("", "black");
+              }, 1000);
             }
+          }
+          break;
+        case "took picture":
+          {
+            const { name } = message;
+            await listImages();
+            const imageEntity = await getImage(name);
+            selectedImageEntity = imageEntity;
+            updateState("selected picture");
           }
           break;
         default:
@@ -213,8 +370,272 @@
 
     initWebsocket();
 
+    const panel = document.getElementById("panel");
+    const panelParent = document.getElementById("panelParent");
+    const panelImagesContainer = document.getElementById("panelImages");
+    const newPanelParentPosition = new THREE.Vector3();
+    function resetPanelPosition() {
+      panelParent.object3D.rotation.y = camera.object3D.rotation.y;
+
+      newPanelParentPosition.copy(camera.object3D.position);
+      newPanelParentPosition.y = 0;
+      panelParent.object3D.position.copy(newPanelParentPosition);
+
+      resetPanelImagesContainer();
+    }
+    function resetPanelImagesContainer() {
+      imageEntities.forEach((imageEntity) => {
+        imageEntity.object3D.scale.setScalar(1);
+        imageEntity.object3D.position.setScalar(0);
+      });
+      panelImagesContainer.object3D.position.y = 0;
+    }
+    function setPanelVisibility(isVisible) {
+      if (panelParent.object3D.visible == isVisible) {
+        return;
+      }
+
+      if (isVisible) {
+        resetPanelPosition();
+      }
+      panelParent.object3D.visible = isVisible;
+    }
+
+    function showImageEntity(imageName) {
+      panel
+        .querySelectorAll("a-image[data-image-name]")
+        .forEach((imageEntity) => {
+          const isVisible = imageEntity.dataset.imageName;
+          if (isVisible) {
+            imageEntity.object3D.scale.setScalar(1);
+            imageEntity.object3D.position.setScalar(0);
+          }
+          imageEntity.setAttribute("visible", isVisible);
+        });
+    }
+    let numberOfImagesPerRow = 3;
+    let gridImageScalar = 0.2;
+
+    async function showImageEntities() {
+      await getImages();
+      const imageEntities = Array.from(
+        panel.querySelectorAll("a-image[data-image-name]")
+      );
+      const numberOfImages = imageEntities.length;
+      const numberOfRows = Math.ceil(numberOfImages / numberOfImagesPerRow);
+      const gridWidth = gridImageScalar * numberOfImagesPerRow;
+      imageEntities.forEach((imageEntity, index) => {
+        const column = index % numberOfRows;
+        const row = Math.floor(index / numberOfRows);
+        imageEntity.object3D.scale.setScalar(gridImageScalar);
+        imageEntity.object3D.position.set(
+          column * gridImageScalar - width / 2,
+          -row * gridImageScalar,
+          0
+        );
+        imageEntity.setAttribute("visible", true);
+      });
+    }
+
+    const rightHandControls = document.getElementById("rightHandControls");
+    const pinchStart = new THREE.Vector3();
+    const pinchMovement = new THREE.Vector3();
+    rightHandControls.addEventListener("pinchstarted", (event) => {
+      const { position } = event.detail;
+      pinchStart.copy(position);
+    });
+    rightHandControls.addEventListener("pinchmoved", (event) => {
+      const { position } = event.detail;
+      if (currentState == "show pictures") {
+        pinchMovement.subVectors(position, pinchStart);
+
+        let y = panelImagesContainer.object3D.position.y + pinchMovement.y;
+        panelImagesContainer.object3D.position.y = y;
+      }
+    });
+
+    const locator = document.getElementById("locator");
+    const locatorCone = locator.querySelector("#locatorArrow a-cone");
+    const locatorImageContainer = locator.querySelector("#locatorImage");
+    let locatorImageEntity;
+    let locatorImageScalar = 0.3;
+
+    async function addLocatorImage(imageName) {
+      if (!imageList.includes(imageName)) {
+        return;
+      }
+      await getImage(imageName);
+
+      if (locatorImageEntity) {
+        if (locatorImageEntity.dataset.imageName == imageName) {
+          return;
+        } else {
+          locatorImageEntity.remove();
+          locatorImageEntity = null;
+        }
+      }
+
+      const image = getImageByName(imageName);
+
+      locatorImageEntity = document.createElement("a-image");
+      locatorImageEntity.dataset.imageName = imageName;
+      locatorImageEntity.setAttribute("src", `#${image.id}`);
+
+      const ratio = image.height / image.width;
+      locatorImageEntity.setAttribute("width", locatorImageScalar);
+      locatorImageEntity.setAttribute("height", ratio * locatorImageScalar);
+
+      locatorImageContainer.appendChild(locatorImageEntity);
+
+      return locatorImageEntity;
+    }
+
+    let updateLocatorIntervalId;
+    function setLocatorVisibility(isVisible) {
+      if (locator.object3D.visible == isVisible) {
+        return;
+      }
+
+      if (!selectedImageEntity) {
+        console.log("no selected imageEntity");
+        return;
+      }
+
+      window.clearInterval(updateLocatorIntervalId);
+      if (isVisible) {
+        // FILL 1 - put image in hud
+        updateLocatorIntervalId = window.setInterval(() => {
+          updateLocator();
+        }, 100);
+      }
+
+      const { position } = selectedImageEntity._info;
+      imageLocation.object3D.position.copy(position);
+      imageLocation.object3D.visible = isVisible;
+
+      locator.object3D.visible = isVisible;
+    }
+
+    const cameraToImageVector = new THREE.Vector3();
+    const imageLocation = document.getElementById("imageLocation");
+    const imageLocationText = imageLocation.querySelector("a-text");
+
+    const coneToPositionVector = new THREE.Vector3();
+    function pointLocatorCone(position) {
+      locatorCone.object3D.getWorldPosition(coneToPositionVector);
+      coneToPositionVector.subVectors(position, coneToPositionVector);
+      locatorSpherical.setFromVector3(coneToPositionVector);
+
+      const pitch = locatorSpherical.phi;
+      const yaw = locatorSpherical.theta;
+
+      locatorCone.object3D.rotation.x = pitch - camera.object3D.rotation.x;
+      locatorCone.object3D.rotation.z = yaw + camera.object3D.rotation.y;
+    }
+
+    const locatorSpherical = new THREE.Spherical();
+    function updateLocator() {
+      if (!selectedImageEntity) {
+        return;
+      }
+      const { position } = selectedImageEntity._info;
+
+      cameraToImageVector.subVectors(position, camera.object3D.position);
+
+      pointLocatorCone(position);
+
+      imageLocationText.setAttribute(
+        "value",
+        `${cameraToImageVector.length().toFixed(2)}m`
+      );
+    }
+
+    const states = [
+      "default",
+      "show pictures",
+      "selected picture",
+      "locate picture",
+    ];
+    let currentState = "default";
+    let selectedImageEntity;
+    async function updateState(newState) {
+      if (states.includes(newState)) {
+        let newPromptText = "";
+        let newLocatorVisibility = false;
+        let newPanelVisibility = false;
+
+        currentState = newState;
+        switch (currentState) {
+          case "default":
+            break;
+          case "selected picture":
+            newPromptText = selectedImageEntity.dataset.imageName;
+            newPanelVisibility = true;
+            showImageEntity(selectedImageEntity.dataset.imageName);
+            break;
+          case "show pictures":
+            newPromptText = "pictures";
+            await showImageEntities();
+            newPanelVisibility = true;
+            break;
+          case "locate picture":
+            newPromptText = `finding ${selectedImageEntity.dataset.imageName}`;
+            newLocatorVisibility = true;
+            break;
+          default:
+            console.log("uncaught state", currentState);
+            break;
+        }
+
+        setLocatorVisibility(newLocatorVisibility);
+        setPanelVisibility(newPanelVisibility);
+
+        setPromptText(newPromptText);
+      }
+    }
+
+    const camera = document.querySelector("a-camera");
+    const cameraPosition = new THREE.Vector3();
+    const cameraEuler = new THREE.Euler();
+
+    /**
+     * @param {string} transcript
+     */
     function onSpeechTranscript(transcript) {
-      // FILL
+      if (transcript.includes("take picture")) {
+        cameraPosition.copy(camera.object3D.position);
+        cameraEuler.copy(camera.object3D.rotation).reorder("YXZ");
+        sendMessage({ type: "take picture" });
+      } else if (transcript.includes("name picture ")) {
+        const name = transcript.split("name picture ")[1];
+        renameImage(selectedImageEntity.dataset.imageName, name);
+      } else if (transcript.includes("show pictures")) {
+        updateState("show pictures");
+      } else if (transcript.includes("show picture")) {
+        {
+          const imageName = transcript.split("show picture ")[1];
+          const imageEntity = getImageEntityByName(imageName);
+          if (imageEntity) {
+            selectedImageEntity = imageEntity;
+            updateState("selected picture");
+          }
+        }
+      } else if (transcript.includes("locate picture")) {
+        {
+          const imageName = transcript.split("locate picture ")[1];
+          const imageEntity = getImageEntityByName(imageName);
+          if (imageEntity) {
+            selectedImageEntity = imageEntity;
+            updateState("locate picture");
+          }
+        }
+      } else if (transcript == "reset") {
+        selectedImageEntity = null;
+        updateState("default");
+      } else {
+        return false;
+      }
+      return true;
     }
   </script>
 </html>

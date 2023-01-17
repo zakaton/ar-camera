@@ -8,6 +8,12 @@
     <button id="captureScreenButton" onclick="getScreenCapture()">
       capture screen
     </button>
+    <button
+      id="toggleSpeechRecognitionButton"
+      onclick="toggleSpeechRecognition()"
+    >
+      enable speech recognition
+    </button>
     <video id="video" autoplay muted style="display: none"></video>
     <div id="label-container"></div>
   </body>
@@ -73,7 +79,6 @@
         const blob = event.data;
         const arrayBuffer = await blob.arrayBuffer();
         const message = JSON.parse(textDecoder.decode(arrayBuffer));
-        //console.log("websocket message", message);
         onMessage(message);
       });
     }
@@ -82,12 +87,17 @@
     }
     function sendMessage(message) {
       if (isWebsocketConnected()) {
+        console.log("sending message", message);
         ws.send(JSON.stringify(message));
       }
     }
     function onMessage(message) {
       console.log("received message", message);
       switch (message.type) {
+        // FILL
+        case "take picture":
+          takePicture();
+          break;
         default:
           console.log("uncaught message type", message.type);
           break;
@@ -98,7 +108,7 @@
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     let imageSize = 100;
-    async function sendPicture(imageName = "my-image") {
+    async function takePicture(imageName = "my-image") {
       if (isWebsocketConnected()) {
         if (shouldCropSquare) {
           const length = Math.min(video.videoWidth, video.videoHeight);
@@ -146,7 +156,7 @@
     }
 
     // SPEECH RECOGNITION
-    let enableSpeechRecognition = true;
+    let enableSpeechRecognition = false;
     let SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
@@ -159,7 +169,7 @@
       if (result) {
         const { isFinal } = result;
         const { transcript } = result[0];
-        const message = { type: "speechRecognition", transcript, isFinal };
+        const message = { type: "speech recognition", transcript, isFinal };
         sendMessage(message);
       }
     });
@@ -169,7 +179,21 @@
       }
     });
 
+    const toggleSpeechRecognitionButton = document.getElementById(
+      "toggleSpeechRecognitionButton"
+    );
+    function toggleSpeechRecognition() {
+      enableSpeechRecognition = !enableSpeechRecognition;
+      toggleSpeechRecognitionButton.innerText = `${
+        !enableSpeechRecognition ? "enable" : "disable"
+      } speech recognition`;
+      if (enableSpeechRecognition) {
+        recognition.start();
+      } else {
+        recognition.stop();
+      }
+    }
+
     initWebsocket();
-    //recognition.start();
   </script>
 </html>
