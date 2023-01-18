@@ -12,6 +12,7 @@ AFRAME.registerSystem("persistent-anchors", {
     this.matrix = new THREE.Matrix4();
 
     this.data.targetAnchor.addEventListener("loaded", (event) => {
+      console.log("target anchor entity loaded");
       const { position, quaternion } = this.data.targetAnchor.object3D;
       this.matrixInverse = new THREE.Matrix4();
       this.matrixInverse.makeRotationFromQuaternion(quaternion);
@@ -35,7 +36,7 @@ AFRAME.registerSystem("persistent-anchors", {
           console.log("known anchor:");
           for (let i = 0; i < anchors.length; i++) {
             console.log(i + ": " + anchors[i]);
-            this.frame.session.deletePersistentAnchor(anchors[i]);
+            //this.frame.session.deletePersistentAnchor(anchors[i]);
           }
         }
         if (localStorage.anchor) {
@@ -99,7 +100,7 @@ AFRAME.registerSystem("persistent-anchors", {
     }
   },
 
-  createAnchor: function (position, quaternion) {
+  createAnchor: function (position, quaternion = new THREE.Quaternion()) {
     console.log("create anchor");
     this.deleteAnchor();
     this._createAnchorFlag = { position, quaternion };

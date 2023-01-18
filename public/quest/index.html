@@ -240,6 +240,7 @@
       }
       const imageEntity = getImageEntityByName(oldImageName);
       if (imageEntity) {
+        imageEntity.querySelector("a-text").setAttribute("value", newImageName);
         imageEntity.dataset.imageName = newImageName;
         if (mode == "selected picture" && selectedImageEntity == imageEntity) {
           setPromptText(newImageName);
@@ -289,6 +290,16 @@
       imageEntity.dataset.imageName = imageName;
       imageEntity.setAttribute("src", `#${image.id}`);
       imageEntity.setAttribute("visible", "false");
+
+      const textEntity = document.createElement("a-text");
+      textEntity.setAttribute("value", imageName);
+      textEntity.setAttribute("align", "center");
+      textEntity.setAttribute("baseline", "bottom");
+      textEntity.setAttribute("position", "0 0 0.001");
+      textEntity.setAttribute("visible", "false");
+      // FILL - fix text size/position
+      imageEntity.appendChild(textEntity);
+
       panelImagesContainer.appendChild(imageEntity);
 
       if (image.complete) {
@@ -442,6 +453,7 @@
             imageEntity.object3D.position.setScalar(0);
           }
           imageEntity.setAttribute("visible", isVisible);
+          imageEntity.querySelector("a-text").setAttribute("visible", false);
         });
     }
     let numberOfImagesPerRow = 3;
@@ -451,7 +463,7 @@
       await getImages();
       const imageEntities = Array.from(
         panel.querySelectorAll("a-image[data-image-name]")
-      );
+      ).sort((a, b) => (a.dataset.imageName < b.dataset.imageName ? -1 : 1));
       const numberOfImages = imageEntities.length;
       const numberOfRows = Math.ceil(numberOfImages / numberOfImagesPerRow);
       const gridWidth = gridImageScalar * numberOfImagesPerRow;
@@ -464,6 +476,7 @@
           -row * gridImageScalar,
           0
         );
+        imageEntity.querySelector("a-text").setAttribute("visible", true);
         imageEntity.setAttribute("visible", true);
       });
     }
