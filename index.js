@@ -20,6 +20,8 @@ app.use(express.static("public"));
 //use bodyParser() to let us get the data from a POST
 app.use(express.json());
 
+const textEncoder = new TextEncoder();
+
 app.post(
   "/api/image/add",
   upload.fields([{ name: "image", maxCount: 1 }]),
@@ -29,8 +31,10 @@ app.post(
       const name = image.originalname;
       fs.writeFile(`./images/${name}`, image.buffer, function (error) {
         res.send({ error: error?.message, name });
+        broadcast(
+          textEncoder.encode(JSON.stringify({ type: "took picture", name }))
+        );
       });
-      broadcast({ type: "took picture", name });
     } else {
       res.status(400).send({ error: "no files sent" });
     }

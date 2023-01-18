@@ -242,7 +242,10 @@
       if (imageEntity) {
         imageEntity.querySelector("a-text").setAttribute("value", newImageName);
         imageEntity.dataset.imageName = newImageName;
-        if (mode == "selected picture" && selectedImageEntity == imageEntity) {
+        if (
+          currentState == "selected picture" &&
+          selectedImageEntity == imageEntity
+        ) {
           setPromptText(newImageName);
         }
       }
@@ -259,13 +262,21 @@
       }
     }
 
-    async function getImage(imageName) {
+    async function getImage(imageName, overwrite) {
       if (!imageList.includes(imageName)) {
         return;
       } else {
         const imageEntity = getImageEntityByName(imageName);
         if (imageEntity) {
-          return imageEntity;
+          if (!overwrite) {
+            return imageEntity;
+          } else {
+            imageEntity.remove();
+            const image = getImageByName(imageName);
+            if (image) {
+              image.remove();
+            }
+          }
         }
       }
 
@@ -378,7 +389,7 @@
             const { isFinal, transcript } = message;
             setTranscriptText(transcript);
             if (isFinal) {
-              const didCommand = onSpeechTranscript(transcript);
+              const didCommand = await onSpeechTranscript(transcript);
               if (didCommand) {
                 setTranscriptText(null, "green");
               }
@@ -392,7 +403,7 @@
           {
             const { name } = message;
             await listImages();
-            const imageEntity = await getImage(name);
+            const imageEntity = await getImage(name, true);
             selectedImageEntity = imageEntity;
             updateState("selected picture");
           }
@@ -426,6 +437,9 @@
       resetPanelImagesContainer();
     }
     function resetPanelImagesContainer() {
+      const imageEntities = Array.from(
+        panel.querySelectorAll("a-image[data-image-name]")
+      );
       imageEntities.forEach((imageEntity) => {
         imageEntity.object3D.scale.setScalar(1);
         imageEntity.object3D.position.setScalar(0);
@@ -433,13 +447,14 @@
       panelImagesContainer.object3D.position.y = 0;
     }
     function setPanelVisibility(isVisible) {
+      if (isVisible) {
+        resetPanelPosition();
+      }
+
       if (panelParent.object3D.visible == isVisible) {
         return;
       }
 
-      if (isVisible) {
-        resetPanelPosition();
-      }
       panelParent.object3D.visible = isVisible;
     }
 
@@ -472,7 +487,7 @@
         const row = Math.floor(index / numberOfRows);
         imageEntity.object3D.scale.setScalar(gridImageScalar);
         imageEntity.object3D.position.set(
-          column * gridImageScalar - width / 2,
+          column * gridImageScalar - gridWidth / 2,
           -row * gridImageScalar,
           0
         );
@@ -660,7 +675,7 @@
     /**
      * @param {string} transcript
      */
-    function onSpeechTranscript(transcript) {
+    async function onSpeechTranscript(transcript) {
       if (transcript.includes("take picture")) {
         // FILL 1 - get matrix from sceneContainer to camera
         const cameraMatrix = camera.object3D.matrix;
@@ -672,14 +687,14 @@
 
         sendMessage({ type: "take picture" });
       } else if (transcript.includes("name picture ")) {
-        const name = transcript.split("name picture ")[1];
+        const name = transcript.split("name picture ")[1] + ".jpeg";
         renameImage(selectedImageEntity.dataset.imageName, name);
       } else if (transcript.includes("show pictures")) {
         updateState("show pictures");
       } else if (transcript.includes("show picture")) {
         {
-          const imageName = transcript.split("show picture ")[1];
-          const imageEntity = getImageEntityByName(imageName);
+          const imageName = transcript.split("show picture ")[1] + ".jpeg";
+          const imageEntity = await getImage(imageName);
           if (imageEntity) {
             selectedImageEntity = imageEntity;
             updateState("selected picture");
