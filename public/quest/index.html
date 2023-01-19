@@ -583,6 +583,7 @@
         }, 100);
 
         const { matrix } = selectedImageEntity._info;
+        // FIX 2
         imageLocation.object3D.matrix.multiplyMatrices(
           sceneContainer.object3D.matrix,
           matrix
@@ -598,16 +599,22 @@
     const imageLocationText = imageLocation.querySelector("a-text");
 
     const coneToPositionVector = new THREE.Vector3();
-    function pointLocatorCone(position) {
-      locatorCone.object3D.getWorldPosition(coneToPositionVector);
-      coneToPositionVector.subVectors(position, coneToPositionVector);
+    const locatorConePosition = new THREE.Vector3();
+    function pointLocatorCone() {
+      locatorCone.object3D.getWorldPosition(locatorConePosition);
+      coneToPositionVector.subVectors(
+        imageLocation.object3D.position,
+        locatorConePosition
+      );
       locatorSpherical.setFromVector3(coneToPositionVector);
 
-      const pitch = locatorSpherical.phi;
-      const yaw = locatorSpherical.theta;
+      let pitch = Math.PI - locatorSpherical.phi;
+      pitch += -camera.object3D.rotation.x;
+      let yaw = -locatorSpherical.theta;
+      yaw += camera.object3D.rotation.y;
 
-      locatorCone.object3D.rotation.x = pitch - camera.object3D.rotation.x;
-      locatorCone.object3D.rotation.z = yaw + camera.object3D.rotation.y;
+      locatorCone.object3D.rotation.x = pitch;
+      locatorCone.object3D.rotation.z = yaw;
     }
 
     const locatorSpherical = new THREE.Spherical();
@@ -615,19 +622,19 @@
       if (!selectedImageEntity) {
         return;
       }
-      const { matrix } = selectedImageEntity._info;
-      // FILL 3 - get position relative to anchor
+
+      pointLocatorCone();
+
       cameraToImageVector.subVectors(
         imageLocation.object3D.position,
         camera.object3D.position
       );
+      const distance = cameraToImageVector.length();
+      imageLocationText.setAttribute("value", `${distance.toFixed(2)}m`);
 
-      pointLocatorCone(cameraToImageVector);
-
-      imageLocationText.setAttribute(
-        "value",
-        `${cameraToImageVector.length().toFixed(2)}m`
-      );
+      if (distance < 0.5) {
+        updateState("default");
+      }
     }
 
     const states = [
@@ -649,6 +656,7 @@
         currentState = newState;
         switch (currentState) {
           case "default":
+            selectedImageEntity = null;
             break;
           case "selected picture":
             newPromptText = selectedImageEntity.dataset.imageName;
@@ -718,7 +726,6 @@
           }
         }
       } else if (transcript == "reset") {
-        selectedImageEntity = null;
         updateState("default");
       } else if (transcript == "set anchor") {
         if (jointsAPI) {
