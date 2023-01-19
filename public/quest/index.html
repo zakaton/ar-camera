@@ -66,11 +66,12 @@
       </a-entity>
 
       <a-entity
-        id="imageLocation"
         billboard
+        id="imageLocation"
         position="0 0 -0.4"
         visible="false"
       >
+        <a-sphere color="red" radius="0.01"></a-sphere>
         <a-entity position="0 0.1 0">
           <a-text
             value="0.00m"
@@ -91,6 +92,14 @@
             ></a-plane>
           </a-entity>
         </a-entity>
+      </a-entity>
+
+      <a-entity id="imageLocationDirection" visible="false">
+        <a-cone
+          color="green"
+          scale="0.05 0.15 0.05"
+          rotation="-90 0 0"
+        ></a-cone>
       </a-entity>
 
       <a-camera id="camera">
@@ -569,6 +578,7 @@
     }
 
     let updateLocatorIntervalId;
+    const imageLocationMatrix = new THREE.Matrix4();
     async function setLocatorVisibility(isVisible) {
       if (isVisible && !selectedImageEntity) {
         console.log("no selected imageEntity");
@@ -583,21 +593,33 @@
         }, 100);
 
         const { matrix } = selectedImageEntity._info;
-        // FIX
-        imageLocation.object3D.matrix.multiplyMatrices(
+        imageLocationMatrix.multiplyMatrices(
           sceneContainer.object3D.matrix,
           matrix
         );
-        console.log(imageLocation.object3D.position);
+
+        imageLocation.object3D.position.setFromMatrixPosition(
+          imageLocationMatrix
+        );
+        imageLocationDirection.object3D.position.setFromMatrixPosition(
+          imageLocationMatrix
+        );
+        imageLocationDirection.object3D.quaternion.setFromRotationMatrix(
+          imageLocationMatrix
+        );
       }
 
       imageLocation.object3D.visible = isVisible;
+      imageLocationDirection.object3D.visible = isVisible;
       locator.object3D.visible = isVisible;
     }
 
     const cameraToImageVector = new THREE.Vector3();
     const imageLocation = document.getElementById("imageLocation");
     const imageLocationText = imageLocation.querySelector("a-text");
+    const imageLocationDirection = document.getElementById(
+      "imageLocationDirection"
+    );
 
     const coneToPositionVector = new THREE.Vector3();
     const locatorConePosition = new THREE.Vector3();
@@ -633,7 +655,7 @@
       const distance = cameraToImageVector.length();
       imageLocationText.setAttribute("value", `${distance.toFixed(2)}m`);
 
-      if (distance < 0.5) {
+      if (distance < 0.2) {
         updateState("default");
       }
     }
@@ -694,7 +716,7 @@
      */
     async function onSpeechTranscript(transcript) {
       if (transcript.includes("take picture")) {
-        // FILL 1 - get matrix from sceneContainer to camera
+        // FIX
         const cameraMatrix = camera.object3D.matrix;
         const anchorMatrix = sceneContainer.object3D.matrix;
         cameraMatrixRelativeToAnchor
