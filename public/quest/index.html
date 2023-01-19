@@ -145,7 +145,7 @@
       </a-camera>
 
       <a-entity
-        visible="true"
+        visible="false"
         id="rightHandControls"
         hand-tracking-controls="hand: right;"
         hand-tracking-extras
@@ -222,10 +222,12 @@
       if (!imageList) {
         await listImages();
       }
+      console.log("getting images...");
       const promises = imageList.map(async (imageName) => {
         await getImage(imageName);
       });
       await Promise.all(promises);
+      console.log("got images");
     }
     function getImageByName(imageName) {
       return assets.querySelector(`img[data-image-name="${imageName}"]`);
@@ -240,7 +242,9 @@
       }
       const imageEntity = getImageEntityByName(oldImageName);
       if (imageEntity) {
-        imageEntity.querySelector("a-text").setAttribute("value", newImageName);
+        imageEntity
+          .querySelector("a-text")
+          .setAttribute("value", newImageName.split(".")[0]);
         imageEntity.dataset.imageName = newImageName;
         if (
           currentState == "selected picture" &&
@@ -250,15 +254,14 @@
         }
       }
     }
-    let imageScalar = 0.2;
+    let imageScalar = 0.4;
     function updateImageEntity(imageName) {
       const image = getImageByName(imageName);
       const imageEntity = getImageEntityByName(imageName);
 
       if (image && imageEntity) {
-        const ratio = image.height / image.width;
-        imageEntity.setAttribute("width", imageScalar);
-        imageEntity.setAttribute("height", ratio * imageScalar);
+        imageEntity._ratio = image.height / image.width;
+        setImageEntityDimensions(imageEntity, imageScalar);
       }
     }
 
@@ -303,13 +306,20 @@
       imageEntity.setAttribute("visible", "false");
 
       const textEntity = document.createElement("a-text");
-      textEntity.setAttribute("value", imageName);
+      textEntity.setAttribute("value", imageName.split(".")[0]);
       textEntity.setAttribute("align", "center");
-      textEntity.setAttribute("baseline", "bottom");
-      textEntity.setAttribute("position", "0 0 0.001");
+      textEntity.setAttribute("color", "black");
+      textEntity.setAttribute("position", "0 0.07 0.001");
+      textEntity.setAttribute("shader", "flat");
+      textEntity.setAttribute("width", "0.5");
       textEntity.setAttribute("visible", "false");
-      // FILL - fix text size/position
       imageEntity.appendChild(textEntity);
+
+      const planeEntity = document.createElement("a-plane");
+      planeEntity.setAttribute("color", "white");
+      planeEntity.setAttribute("width", "0.1");
+      planeEntity.setAttribute("height", "0.03");
+      textEntity.appendChild(planeEntity);
 
       panelImagesContainer.appendChild(imageEntity);
 
@@ -433,15 +443,12 @@
       newPanelParentPosition.copy(camera.object3D.position);
       newPanelParentPosition.y = 0;
       panelParent.object3D.position.copy(newPanelParentPosition);
-
-      resetPanelImagesContainer();
     }
     function resetPanelImagesContainer() {
       const imageEntities = Array.from(
         panel.querySelectorAll("a-image[data-image-name]")
       );
       imageEntities.forEach((imageEntity) => {
-        imageEntity.object3D.scale.setScalar(1);
         imageEntity.object3D.position.setScalar(0);
       });
       panelImagesContainer.object3D.position.y = 0;
@@ -462,10 +469,10 @@
       panel
         .querySelectorAll("a-image[data-image-name]")
         .forEach((imageEntity) => {
-          const isVisible = imageEntity.dataset.imageName;
+          const isVisible = imageName == imageEntity.dataset.imageName;
           if (isVisible) {
-            imageEntity.object3D.scale.setScalar(1);
             imageEntity.object3D.position.setScalar(0);
+            setImageEntityDimensions(imageEntity, imageScalar);
           }
           imageEntity.setAttribute("visible", isVisible);
           imageEntity.querySelector("a-text").setAttribute("visible", false);
@@ -473,44 +480,48 @@
     }
     let numberOfImagesPerRow = 3;
     let gridImageScalar = 0.2;
-
     async function showImageEntities() {
       await getImages();
       const imageEntities = Array.from(
         panel.querySelectorAll("a-image[data-image-name]")
       ).sort((a, b) => (a.dataset.imageName < b.dataset.imageName ? -1 : 1));
+      console.log("sorted images", imageEntities);
       const numberOfImages = imageEntities.length;
       const numberOfRows = Math.ceil(numberOfImages / numberOfImagesPerRow);
       const gridWidth = gridImageScalar * numberOfImagesPerRow;
+      const gridXOffset = (gridImageScalar * (numberOfImagesPerRow - 1)) / 2;
       imageEntities.forEach((imageEntity, index) => {
-        const column = index % numberOfRows;
-        const row = Math.floor(index / numberOfRows);
-        imageEntity.object3D.scale.setScalar(gridImageScalar);
-        imageEntity.object3D.position.set(
-          column * gridImageScalar - gridWidth / 2,
-          -row * gridImageScalar,
-          0
-        );
+        const row = index % numberOfRows;
+        const column = Math.floor(index / numberOfRows);
+        const x = column * gridImageScalar - gridXOffset;
+        const y = -row * gridImageScalar;
+        setImageEntityDimensions(imageEntity, gridImageScalar);
+        imageEntity.object3D.position.set(x, y, 0);
         imageEntity.querySelector("a-text").setAttribute("visible", true);
         imageEntity.setAttribute("visible", true);
       });
     }
+    function setImageEntityDimensions(imageEntity, imageScalar) {
+      imageEntity.setAttribute("width", imageScalar);
+      imageEntity.setAttribute("height", imageEntity._ratio * imageScalar);
+    }
 
     const rightHandControls = document.getElementById("rightHandControls");
-    const pinchStart = new THREE.Vector3();
+    const pinchPosition = new THREE.Vector3();
     const pinchMovement = new THREE.Vector3();
     rightHandControls.addEventListener("pinchstarted", (event) => {
       const { position } = event.detail;
-      pinchStart.copy(position);
+      pinchPosition.copy(position);
     });
     rightHandControls.addEventListener("pinchmoved", (event) => {
       const { position } = event.detail;
       if (currentState == "show pictures") {
-        pinchMovement.subVectors(position, pinchStart);
+        pinchMovement.subVectors(position, pinchPosition);
 
-        let y = panelImagesContainer.object3D.position.y + pinchMovement.y;
+        let y = panelImagesContainer.object3D.position.y + pinchMovement.y * 2;
         panelImagesContainer.object3D.position.y = y;
       }
+      pinchPosition.copy(position);
     });
 
     let jointsAPI;
@@ -548,9 +559,8 @@
       locatorImageEntity.dataset.imageName = imageName;
       locatorImageEntity.setAttribute("src", `#${image.id}`);
 
-      const ratio = image.height / image.width;
-      locatorImageEntity.setAttribute("width", locatorImageScalar);
-      locatorImageEntity.setAttribute("height", ratio * locatorImageScalar);
+      locatorImageEntity._ratio = image.height / image.width;
+      setImageEntityDimensions(locatorImageEntity, locatorImageScalar);
 
       locatorImageContainer.appendChild(locatorImageEntity);
 
@@ -634,6 +644,8 @@
     let selectedImageEntity;
     async function updateState(newState) {
       if (states.includes(newState)) {
+        console.log("new state", newState);
+
         let newPromptText = "";
         let newLocatorVisibility = false;
         let newPanelVisibility = false;
