@@ -252,6 +252,7 @@
       const image = getImageByName(oldImageName);
       if (image) {
         image.dataset.imageName = newImageName;
+        image.id = `${newImageName}-src`;
       }
       const imageEntity = getImageEntityByName(oldImageName);
       if (imageEntity) {
@@ -495,17 +496,22 @@
     let gridImageScalar = 0.2;
     async function showImageEntities() {
       await getImages();
-      const imageEntities = Array.from(
+      let imageEntities = Array.from(
         panel.querySelectorAll("a-image[data-image-name]")
-      ).sort((a, b) => (a.dataset.imageName < b.dataset.imageName ? -1 : 1));
+      );
+      if (true) {
+        imageEntities.sort((a, b) =>
+          a.dataset.imageName < b.dataset.imageName ? -1 : 1
+        );
+      }
       console.log("sorted images", imageEntities);
       const numberOfImages = imageEntities.length;
       const numberOfRows = Math.ceil(numberOfImages / numberOfImagesPerRow);
       const gridWidth = gridImageScalar * numberOfImagesPerRow;
       const gridXOffset = (gridImageScalar * (numberOfImagesPerRow - 1)) / 2;
       imageEntities.forEach((imageEntity, index) => {
-        const row = index % numberOfRows;
-        const column = Math.floor(index / numberOfRows);
+        const row = Math.floor(index / numberOfImagesPerRow);
+        const column = index % numberOfImagesPerRow;
         const x = column * gridImageScalar - gridXOffset;
         const y = -row * gridImageScalar;
         setImageEntityDimensions(imageEntity, gridImageScalar);
@@ -720,7 +726,6 @@
      */
     async function onSpeechTranscript(transcript) {
       if (transcript.includes("take picture")) {
-        // FIX
         const cameraMatrix = camera.object3D.matrix;
         const anchorMatrix = sceneContainer.object3D.matrix;
         cameraMatrixRelativeToAnchor
