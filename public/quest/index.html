@@ -96,16 +96,16 @@
       <a-camera id="camera">
         <a-entity position="0 0 -0.4" id="hud">
           <a-entity id="locator" visible="false">
-            <a-entity id="locatorImage" position="-0.2 0 0">
+            <a-entity id="locatorImage" position="-0.1 -0.1 0">
               <a-plane
                 color="red"
-                width="0.3"
-                height="0.3"
+                width="0.2"
+                height="0.2"
                 visible="true"
               ></a-plane>
             </a-entity>
-            <a-entity id="locatorArrow" position="0.2 0 -0.2">
-              <a-cone color="red" scale="0.01 0.1 0.01"></a-cone>
+            <a-entity id="locatorArrow" position="0.2 -0.1 -0.1">
+              <a-cone color="red" scale="0.05 0.15 0.015"></a-cone>
             </a-entity>
           </a-entity>
 
@@ -536,7 +536,7 @@
     const locatorCone = locator.querySelector("#locatorArrow a-cone");
     const locatorImageContainer = locator.querySelector("#locatorImage");
     let locatorImageEntity;
-    let locatorImageScalar = 0.3;
+    let locatorImageScalar = 0.2;
 
     async function addLocatorImage(imageName) {
       if (!imageList.includes(imageName)) {
@@ -548,6 +548,7 @@
         if (locatorImageEntity.dataset.imageName == imageName) {
           return;
         } else {
+          console.log("removing", locatorImageEntity);
           locatorImageEntity.remove();
           locatorImageEntity = null;
         }
@@ -569,11 +570,7 @@
 
     let updateLocatorIntervalId;
     async function setLocatorVisibility(isVisible) {
-      if (locator.object3D.visible == isVisible) {
-        return;
-      }
-
-      if (!selectedImageEntity) {
+      if (isVisible && !selectedImageEntity) {
         console.log("no selected imageEntity");
         return;
       }
@@ -584,16 +581,15 @@
         updateLocatorIntervalId = window.setInterval(() => {
           updateLocator();
         }, 100);
+
+        const { matrix } = selectedImageEntity._info;
+        imageLocation.object3D.matrix.multiplyMatrices(
+          sceneContainer.object3D.matrix,
+          matrix
+        );
       }
 
-      // FILL 2
-      const { matrix } = selectedImageEntity._info;
-      imageLocation.object3D.matrix.multiplyMatrices(
-        sceneContainer.object3D.matrix,
-        matrix
-      );
       imageLocation.object3D.visible = isVisible;
-
       locator.object3D.visible = isVisible;
     }
 
@@ -626,7 +622,7 @@
         camera.object3D.position
       );
 
-      pointLocatorCone(position);
+      pointLocatorCone(cameraToImageVector);
 
       imageLocationText.setAttribute(
         "value",
@@ -714,8 +710,8 @@
         }
       } else if (transcript.includes("locate picture")) {
         {
-          const imageName = transcript.split("locate picture ")[1];
-          const imageEntity = getImageEntityByName(imageName);
+          const imageName = transcript.split("locate picture ")[1] + ".jpeg";
+          const imageEntity = await getImage(imageName);
           if (imageEntity) {
             selectedImageEntity = imageEntity;
             updateState("locate picture");
