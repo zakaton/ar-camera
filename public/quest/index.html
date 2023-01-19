@@ -583,11 +583,12 @@
         }, 100);
 
         const { matrix } = selectedImageEntity._info;
-        // FIX 2
+        // FIX
         imageLocation.object3D.matrix.multiplyMatrices(
           sceneContainer.object3D.matrix,
           matrix
         );
+        console.log(imageLocation.object3D.position);
       }
 
       imageLocation.object3D.visible = isVisible;
