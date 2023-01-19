@@ -113,8 +113,12 @@
                 visible="true"
               ></a-plane>
             </a-entity>
-            <a-entity id="locatorArrow" position="0.2 -0.1 -0.1">
-              <a-cone color="red" scale="0.05 0.15 0.015"></a-cone>
+            <a-entity id="locatorCone" position="0.2 -0.1 0">
+              <a-cone
+                color="red"
+                scale="0.05 0.15 0.015"
+                rotation="-90 0 0"
+              ></a-cone>
             </a-entity>
           </a-entity>
 
@@ -542,7 +546,7 @@
     );
 
     const locator = document.getElementById("locator");
-    const locatorCone = locator.querySelector("#locatorArrow a-cone");
+    const locatorCone = document.getElementById("locatorCone");
     const locatorImageContainer = locator.querySelector("#locatorImage");
     let locatorImageEntity;
     let locatorImageScalar = 0.2;
@@ -631,13 +635,13 @@
       );
       locatorSpherical.setFromVector3(coneToPositionVector);
 
-      let pitch = Math.PI - locatorSpherical.phi;
-      pitch += -camera.object3D.rotation.x;
-      let yaw = -locatorSpherical.theta;
-      yaw += camera.object3D.rotation.y;
+      let pitch = -locatorSpherical.phi + Math.PI / 2;
+      pitch -= camera.object3D.rotation.x;
+      let yaw = locatorSpherical.theta - Math.PI;
+      yaw -= camera.object3D.rotation.y;
 
       locatorCone.object3D.rotation.x = pitch;
-      locatorCone.object3D.rotation.z = yaw;
+      locatorCone.object3D.rotation.y = yaw;
     }
 
     const locatorSpherical = new THREE.Spherical();
@@ -655,7 +659,7 @@
       const distance = cameraToImageVector.length();
       imageLocationText.setAttribute("value", `${distance.toFixed(2)}m`);
 
-      if (distance < 0.2) {
+      if (distance < 0.3) {
         updateState("default");
       }
     }
