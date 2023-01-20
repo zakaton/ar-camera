@@ -165,7 +165,7 @@
       ></a-entity>
 
       <a-entity id="panelParent">
-        <a-entity id="panel" position="0 1.2 -0.5" rotation="-30 0 0">
+        <a-entity id="panel" position="0 1.4 -0.5" rotation="-30 0 0">
           <a-entity id="panelImages"></a-entity>
         </a-entity>
       </a-entity>
@@ -254,17 +254,16 @@
         image.dataset.imageName = newImageName;
         image.id = `${newImageName}-src`;
       }
+      const shortName = newImageName.split(".")[0];
       const imageEntity = getImageEntityByName(oldImageName);
       if (imageEntity) {
-        imageEntity
-          .querySelector("a-text")
-          .setAttribute("value", newImageName.split(".")[0]);
+        imageEntity.querySelector("a-text").setAttribute("value", shortName);
         imageEntity.dataset.imageName = newImageName;
         if (
           currentState == "selected picture" &&
           selectedImageEntity == imageEntity
         ) {
-          setPromptText(newImageName);
+          setPromptText(shortName);
         }
       }
     }
@@ -367,10 +366,6 @@
         });
       }
       localStorage.setItem(newImageName, imageInfoString);
-
-      if (imageEntity == selectedImageEntity) {
-        setPromptText(newImageName);
-      }
 
       await listImages();
     }
@@ -692,9 +687,13 @@
             selectedImageEntity = null;
             break;
           case "selected picture":
-            newPromptText = selectedImageEntity.dataset.imageName;
-            newPanelVisibility = true;
-            showImageEntity(selectedImageEntity.dataset.imageName);
+            {
+              const { imageName } = selectedImageEntity.dataset;
+              const shortName = imageName.split(".")[0];
+              newPromptText = shortName;
+              newPanelVisibility = true;
+              showImageEntity(imageName);
+            }
             break;
           case "show pictures":
             newPromptText = "pictures";
@@ -702,8 +701,12 @@
             newPanelVisibility = true;
             break;
           case "locate picture":
-            newPromptText = `finding ${selectedImageEntity.dataset.imageName}`;
-            newLocatorVisibility = true;
+            {
+              const { imageName } = selectedImageEntity.dataset;
+              const shortName = imageName.split(".")[0];
+              newPromptText = `finding ${shortName}`;
+              newLocatorVisibility = true;
+            }
             break;
           default:
             console.log("uncaught state", currentState);
