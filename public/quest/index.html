@@ -452,6 +452,7 @@
       newPanelParentPosition.copy(camera.object3D.position);
       newPanelParentPosition.y = 0;
       panelParent.object3D.position.copy(newPanelParentPosition);
+      panelImagesContainer.object3D.position.y = 0;
     }
     function resetPanelImagesContainer() {
       const imageEntities = Array.from(
@@ -592,6 +593,7 @@
 
       window.clearInterval(updateLocatorIntervalId);
       if (isVisible) {
+        resetPanelPosition();
         await addLocatorImage(selectedImageEntity.dataset.imageName);
         updateLocatorIntervalId = window.setInterval(() => {
           updateLocator();
