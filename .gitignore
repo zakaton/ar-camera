@@ -128,7 +128,7 @@ dist
 
 *.txt
 
-sec/*
+sec/server*
 .DS_Store
 .vscode/*
 
